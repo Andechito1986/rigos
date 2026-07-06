@@ -48,7 +48,7 @@ export interface NotificationItem {
   body: string;
   appId: string;
   timestamp: number;
-  read: boolean;
+  read?: boolean;
 }
 
 export interface ContextMenuItem {

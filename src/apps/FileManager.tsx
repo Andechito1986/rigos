@@ -19,27 +19,19 @@ import {
   Archive,
   Search,
   Plus,
-  RefreshCw,
-  MoreVertical,
   X,
-  Check,
-  Settings2,
   Scissors,
   Copy,
   ClipboardPaste,
   Pencil,
   Info,
   HardDrive,
-  Clock,
-  Lock,
   FileImage,
 } from 'lucide-react';
 import {
   getFileSystem,
   getNodeAtPath,
-  resolvePath,
   getParentPath,
-  getBasename,
   formatSize,
   formatDate,
   createNodeAtPath,
@@ -578,7 +570,7 @@ export default function FileManager() {
               className="flex items-center gap-1 rounded-[6px] px-2 py-1 transition-colors duration-150 text-[11px]"
               style={{ color: '#8A8AA3' }}
               onClick={() => {
-                const dirs: 'name' | 'size' | 'date'[] = ['name', 'size', 'date'];
+                const dirs: ('name' | 'size' | 'date')[] = ['name', 'size', 'date'];
                 const next = dirs[(dirs.indexOf(sortBy) + 1) % dirs.length];
                 toggleSort(next);
               }}

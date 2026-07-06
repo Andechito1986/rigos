@@ -7,7 +7,6 @@ import {
   getBasename,
   formatSize,
   formatDate,
-  createNodeAtPath,
   removeNodeAtPath,
   cloneNode,
   getPromptPath,
@@ -138,9 +137,6 @@ export default function Terminal() {
     setHistory((prev) => [...prev, ...lines]);
   }, []);
 
-  const addOutputHtml = useCallback((html: string) => {
-    setHistory((prev) => [...prev, { id: outputId++, text: html, isHtml: true }]);
-  }, []);
 
   // Execute command
   const executeCommand = useCallback(
@@ -322,7 +318,7 @@ export default function Terminal() {
           if (!parent || parent.type !== 'directory') {
             addOutput(`${ANSI.red}touch: cannot touch '${args[0]}': No such directory${ANSI.reset}`);
           } else {
-            const existing = parent.children?.find((c) => c.name === name);
+            const existing = parent.children?.find((c: FileNode) => c.name === name);
             if (existing) {
               existing.modified = new Date();
             } else {
@@ -380,6 +376,7 @@ export default function Terminal() {
           const parentPath = getParentPath(resolved);
           const name = getBasename(resolved);
           const parent = getNodeAtPath(fs, parentPath);
+          void parent;
           const node = getNodeAtPath(fs, resolved);
           if (!node) {
             addOutput(`${ANSI.red}rm: cannot remove '${target}': No such file or directory${ANSI.reset}`);
@@ -541,7 +538,7 @@ export default function Terminal() {
             addOutput('Filesystem      Size  Used Avail Use% Mounted on');
             addOutput('/dev/nvme0n1p1  1.8T  892G  826G  52% /');
             addOutput('/dev/nvme0n1p2  3.6T  1.2T  2.2T  36% /home');
-            addOverlay('Filesystem      Size  Used Avail Use% Mounted on', '/dev/nvme0n1p1  1.8T  892G  826G  52% /', '/dev/nvme0n1p2  3.6T  1.2T  2.2T  36% /home');
+
           }
           break;
         }
@@ -819,7 +816,7 @@ export default function Terminal() {
           addOutput(`${ANSI.cyan}  GPU  Model              Hash Rate    Temp    Power    Status      ${ANSI.reset}`);
           addOutput(`${ANSI.cyan}  ─────────────────────────────────────────────────────────────────${ANSI.reset}`);
           for (const gpu of gpus) {
-            const status = gpu.avail ? `${ANSI.green}● Available${ANSI.reset}` : `${ANSI.amber}○ Rented${ANSI.reset}`;
+            const status = gpu.avail ? `${ANSI.green}● Available${ANSI.reset}` : `${ANSI.yellow}○ Rented${ANSI.reset}`;
             const tempColor = gpu.temp > 80 ? ANSI.red : gpu.temp > 70 ? ANSI.yellow : ANSI.green;
             addOutput(
               `  ${String(gpu.id).padStart(2, ' ')}   ${gpu.name.padEnd(20, ' ')} ${gpu.hash.padStart(12, ' ')}  ${tempColor}${String(gpu.temp).padStart(3, ' ')}°C${ANSI.reset}   ${String(gpu.power).padStart(4, ' ')}W   ${status}`
@@ -847,7 +844,7 @@ export default function Terminal() {
               addOutput(`${ANSI.green}[INFO]${ANSI.reset} Mining started on 6 GPUs - Total: 996.2 MH/s`);
             }
           } else if (args.includes('--stop')) {
-            addOutput(`${ANSI.amber}[WARN]${ANSI.reset} Stopping mining...`);
+            addOutput(`${ANSI.yellow}[WARN]${ANSI.reset} Stopping mining...`);
             addOutput(`${ANSI.green}[INFO]${ANSI.reset} Mining stopped. Total shares submitted: 14,892`);
           } else {
             addOutput('Usage: mine --start [--gpu id] | mine --stop');

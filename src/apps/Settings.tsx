@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Wifi,
   Image,
@@ -8,21 +8,9 @@ import {
   Users,
   Info,
   Check,
-  Moon,
-  Sun,
-  Monitor,
-  Signal,
   Lock,
-  Unlock,
   RefreshCw,
-  ChevronRight,
-  HardDrive,
   Cpu,
-  MemoryStick,
-  Battery,
-  Server,
-  Shield,
-  X,
   Eye,
   EyeOff,
 } from 'lucide-react';
