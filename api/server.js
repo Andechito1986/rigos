@@ -222,6 +222,52 @@ app.post('/api/service/:name/:action', (req, res) => {
   }
 });
 
+// ===================== SYSTEM UPDATE =====================
+app.post('/api/update', (req, res) => {
+  const results = { steps: [], success: true };
+
+  try {
+    // Step 1: git pull in /var/www/rigos
+    try {
+      const out1 = execSync('cd /var/www/rigos && git pull origin master 2>&1', { encoding: 'utf8', timeout: 30000 });
+      results.steps.push({ step: 'git-pull-frontend', status: 'ok', output: out1.trim() });
+    } catch (e) {
+      results.steps.push({ step: 'git-pull-frontend', status: 'error', output: e.stdout?.toString() || e.message });
+      results.success = false;
+    }
+
+    // Step 2: git pull in /opt/rigos-api
+    try {
+      const out2 = execSync('cd /opt/rigos-api && git pull origin master 2>&1', { encoding: 'utf8', timeout: 30000 });
+      results.steps.push({ step: 'git-pull-api', status: 'ok', output: out2.trim() });
+    } catch (e) {
+      results.steps.push({ step: 'git-pull-api', status: 'warn', output: e.stdout?.toString() || e.message || 'No git repo' });
+    }
+
+    // Step 3: restart nginx
+    try {
+      const out3 = execSync('sudo systemctl restart nginx 2>&1', { encoding: 'utf8', timeout: 10000 });
+      results.steps.push({ step: 'restart-nginx', status: 'ok', output: out3.trim() || 'restarted' });
+    } catch (e) {
+      results.steps.push({ step: 'restart-nginx', status: 'error', output: e.stdout?.toString() || e.message });
+      results.success = false;
+    }
+
+    // Step 4: restart rigos-api
+    try {
+      const out4 = execSync('sudo systemctl restart rigos-api 2>&1', { encoding: 'utf8', timeout: 10000 });
+      results.steps.push({ step: 'restart-rigos-api', status: 'ok', output: out4.trim() || 'restarted' });
+    } catch (e) {
+      results.steps.push({ step: 'restart-rigos-api', status: 'error', output: e.stdout?.toString() || e.message });
+      results.success = false;
+    }
+
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message, steps: results.steps });
+  }
+});
+
 // ===================== HELPERS =====================
 function formatUptime(seconds) {
   const d = Math.floor(seconds / 86400);

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Actualizar RIG.OS
+Name[es]=Actualizar RIG.OS
+Comment=Actualiza RIG.OS a la ultima version desde GitHub
+Comment[es]=Actualiza RIG.OS a la ultima version desde GitHub
+Exec=bash -c 'cd /var/www/rigos && git pull origin master && sudo systemctl restart nginx rigos-api && notify-send "RIG.OS" "Actualizacion completada!" || notify-send "RIG.OS" "Error en la actualizacion"'
+Icon=software-update-available
+Type=Application
+Terminal=true
+Categories=System;
+Keywords=update;rigos;gpu;mining;actualizar;

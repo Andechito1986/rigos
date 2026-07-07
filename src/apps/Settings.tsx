@@ -11,6 +11,7 @@ import {
   Lock,
   RefreshCw,
   Cpu,
+  Rocket,
   Eye,
   EyeOff,
 } from 'lucide-react';
@@ -83,7 +84,7 @@ interface SettingsState {
   };
 }
 
-type Category = 'wifi' | 'background' | 'appearance' | 'sound' | 'network' | 'users' | 'about';
+type Category = 'wifi' | 'background' | 'appearance' | 'sound' | 'network' | 'users' | 'about' | 'system';
 
 const categories: { id: Category; label: string; icon: React.ElementType }[] = [
   { id: 'wifi', label: 'Wi-Fi', icon: Wifi },
@@ -93,6 +94,7 @@ const categories: { id: Category; label: string; icon: React.ElementType }[] = [
   { id: 'network', label: 'Network', icon: Globe },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'about', label: 'About', icon: Info },
+  { id: 'system', label: 'System', icon: Rocket },
 ];
 
 function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -197,6 +199,8 @@ export default function Settings() {
   const [uptime, setUptime] = useState({ days: 3, hours: 7, mins: 22 });
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateResult, setUpdateResult] = useState<{ success: boolean; steps: { step: string; status: string; output: string }[] } | null>(null);
   const [connectingWifi, setConnectingWifi] = useState<string | null>(null);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: '', new: '', confirm: '' });
@@ -250,6 +254,19 @@ export default function Settings() {
     } catch {
       // Audio not available
     }
+  }, []);
+
+  const handleSystemUpdate = useCallback(async () => {
+    setUpdateLoading(true);
+    setUpdateResult(null);
+    try {
+      const res = await fetch('http://172.16.16.70:3001/api/update', { method: 'POST' });
+      const data = await res.json();
+      setUpdateResult(data);
+    } catch (e: any) {
+      setUpdateResult({ success: false, steps: [{ step: 'fetch', status: 'error', output: e.message }] });
+    }
+    setUpdateLoading(false);
   }, []);
 
   const handleCheckUpdate = useCallback(() => {
@@ -1297,6 +1314,61 @@ export default function Settings() {
                   Terms of Service
                 </button>
               </p>
+            </div>
+          </div>
+        );
+
+      case 'system':
+        return (
+          <div className="p-6">
+            <h2 className="text-[18px] font-bold mb-4" style={{ color: '#E8E8F0', fontFamily: "'Space Grotesk', sans-serif" }}>
+              System Update
+            </h2>
+
+            <div className="rounded-[10px] p-4 mb-4" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+              <p className="text-[13px] mb-3" style={{ color: '#8A8AA3' }}>
+                Update RIG.OS to the latest version from GitHub. This will pull the latest code and restart all services.
+              </p>
+
+              <button
+                className="flex items-center gap-2 rounded-[6px] px-4 py-2 font-semibold text-[13px] transition-all duration-200"
+                style={{
+                  backgroundColor: updateLoading ? '#1C1C26' : '#00E5A0',
+                  color: updateLoading ? '#8A8AA3' : '#0A0A0F',
+                  cursor: updateLoading ? 'wait' : 'pointer',
+                  opacity: updateLoading ? 0.6 : 1,
+                }}
+                onClick={handleSystemUpdate}
+                disabled={updateLoading}
+              >
+                <RefreshCw size={16} className={updateLoading ? 'animate-spin' : ''} />
+                {updateLoading ? 'Updating...' : 'Update RIG.OS Now'}
+              </button>
+
+              {updateResult && (
+                <div className="mt-4 rounded-[6px] p-3" style={{ backgroundColor: updateResult.success ? 'rgba(0,229,160,0.08)' : 'rgba(255,71,87,0.08)', border: `1px solid ${updateResult.success ? '#00E5A040' : '#FF475740'}` }}>
+                  <p className="text-[13px] font-semibold mb-2" style={{ color: updateResult.success ? '#00E5A0' : '#FF4757' }}>
+                    {updateResult.success ? 'Update completed successfully!' : 'Update completed with errors'}
+                  </p>
+                  <div className="space-y-1">
+                    {updateResult.steps.map((s, i) => (
+                      <div key={i} className="flex items-center gap-2 text-[11px]" style={{ color: s.status === 'ok' ? '#00E5A0' : s.status === 'warn' ? '#FFB020' : '#FF4757' }}>
+                        <span>{s.status === 'ok' ? '✓' : s.status === 'warn' ? '⚠' : '✗'}</span>
+                        <span className="font-medium">{s.step}:</span>
+                        <span style={{ color: '#8A8AA3' }}>{s.output}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-[10px] p-4" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }}>
+              <h3 className="text-[13px] font-semibold mb-3" style={{ color: '#E8E8F0' }}>Command Line</h3>
+              <p className="text-[12px] mb-2" style={{ color: '#8A8AA3' }}>You can also update via SSH:</p>
+              <code className="block rounded-[4px] p-2 text-[12px]" style={{ backgroundColor: '#0A0A0F', color: '#00E5A0', fontFamily: "'JetBrains Mono', monospace" }}>
+                rigos-update status
+              </code>
             </div>
           </div>
         );
