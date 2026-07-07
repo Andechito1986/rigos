@@ -16,6 +16,7 @@ import {
   Loader2,
   Zap,
   Minus,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -26,6 +27,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useOSStore } from '@/store/osStore';
+import useRealGPU from '@/hooks/useRealGPU';
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -83,278 +85,155 @@ interface HashHistoryPoint {
 
 // ─── Mock Data ───────────────────────────────────────────────────────
 
+// ─── Real Rig GPU Catalog ────────────────────────────────────────────
+// Matches: 4x GTX 1660 Super + 1x RTX 3070
+
 const GPUS: GPU[] = [
   {
-    id: 'gpu-1',
-    name: 'RTX 4090 Founders Edition',
-    brand: 'NVIDIA',
-    vram: '24GB GDDR6X',
-    vramSize: 24,
-    cudaCores: 16384,
-    baseClock: '2.52 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 165,
-    powerDraw: 450,
-    temp: 62,
-    availability: 92,
-    pricePerHour: 2.4,
-    image: '/gpu-placeholder.jpg',
-    location: 'US-East-4',
-    status: 'available',
-    model: 'AD102',
-    bus: 'PCIe 4.0',
-    description: 'Flagship Ada Lovelace GPU. Best-in-class performance for AI/ML workloads and ray tracing.',
-  },
-  {
-    id: 'gpu-2',
-    name: 'RTX 3090 Ti',
-    brand: 'NVIDIA',
-    vram: '24GB GDDR6X',
-    vramSize: 24,
-    cudaCores: 10752,
-    baseClock: '1.67 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 132,
-    powerDraw: 480,
-    temp: 68,
-    availability: 75,
-    pricePerHour: 1.5,
-    image: '/gpu-placeholder.jpg',
-    location: 'US-West-1',
-    status: 'available',
-    model: 'GA102',
-    bus: 'PCIe 4.0',
-    description: 'High-VRAM Ampere GPU excellent for large model inference and training.',
-  },
-  {
-    id: 'gpu-3',
-    name: 'RTX 4080',
-    brand: 'NVIDIA',
-    vram: '16GB GDDR6X',
-    vramSize: 16,
-    cudaCores: 9728,
-    baseClock: '2.21 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 120,
-    powerDraw: 320,
-    temp: 58,
-    availability: 88,
-    pricePerHour: 1.8,
-    image: '/gpu-placeholder.jpg',
-    location: 'EU-Central-1',
-    status: 'available',
-    model: 'AD103',
-    bus: 'PCIe 4.0',
-    description: 'Efficient high-performance GPU. Great price-to-performance for most workloads.',
-  },
-  {
-    id: 'gpu-4',
-    name: 'A100 80GB',
-    brand: 'NVIDIA',
-    vram: '80GB HBM2e',
-    vramSize: 80,
-    cudaCores: 6912,
-    baseClock: '1.09 GHz',
-    memoryType: 'HBM2e',
-    hashRate: 98,
-    powerDraw: 400,
-    temp: 55,
-    availability: 45,
-    pricePerHour: 3.5,
-    image: '/server-rack.jpg',
-    location: 'US-East-1',
-    status: 'available',
-    model: 'GA100',
-    bus: 'PCIe 4.0',
-    description: 'Enterprise data center GPU with massive HBM memory for large-scale AI training.',
-  },
-  {
-    id: 'gpu-5',
-    name: 'H100 80GB',
-    brand: 'NVIDIA',
-    vram: '80GB HBM3',
-    vramSize: 80,
-    cudaCores: 16896,
-    baseClock: '1.98 GHz',
-    memoryType: 'HBM3',
-    hashRate: 210,
-    powerDraw: 700,
-    temp: 60,
-    availability: 30,
-    pricePerHour: 4.5,
-    image: '/server-rack.jpg',
-    location: 'US-West-2',
-    status: 'available',
-    model: 'GH100',
-    bus: 'PCIe 5.0',
-    description: 'Next-gen Hopper architecture. Unmatched performance for AI training and HPC.',
-  },
-  {
-    id: 'gpu-6',
-    name: 'RTX 4070',
-    brand: 'NVIDIA',
-    vram: '12GB GDDR6X',
-    vramSize: 12,
-    cudaCores: 5888,
-    baseClock: '1.92 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 85,
-    powerDraw: 200,
-    temp: 52,
-    availability: 95,
-    pricePerHour: 0.8,
-    image: '/gpu-placeholder.jpg',
-    location: 'EU-West-3',
-    status: 'available',
-    model: 'AD104',
-    bus: 'PCIe 4.0',
-    description: 'Mid-range powerhouse with excellent efficiency for inference workloads.',
-  },
-  {
-    id: 'gpu-7',
-    name: 'RX 7900 XTX',
-    brand: 'AMD',
-    vram: '24GB GDDR6',
-    vramSize: 24,
-    cudaCores: 6144,
-    baseClock: '1.90 GHz',
-    memoryType: 'GDDR6',
-    hashRate: 88,
-    powerDraw: 355,
-    temp: 65,
-    availability: 80,
-    pricePerHour: 1.0,
-    image: '/gpu-placeholder.jpg',
-    location: 'EU-West-3',
-    status: 'available',
-    model: 'Navi 31',
-    bus: 'PCIe 4.0',
-    description: 'AMD flagship with competitive compute performance and large VRAM.',
-  },
-  {
-    id: 'gpu-8',
-    name: 'RTX 4060',
+    id: 'gpu-rtx3070',
+    name: 'RTX 3070',
     brand: 'NVIDIA',
     vram: '8GB GDDR6',
     vramSize: 8,
-    cudaCores: 3072,
-    baseClock: '1.83 GHz',
+    cudaCores: 5888,
+    baseClock: '1.50 GHz',
     memoryType: 'GDDR6',
-    hashRate: 48,
-    powerDraw: 115,
-    temp: 48,
-    availability: 98,
-    pricePerHour: 0.15,
+    hashRate: 62.5,
+    powerDraw: 185,
+    temp: 58,
+    availability: 100,
+    pricePerHour: 0.35,
     image: '/gpu-placeholder.jpg',
-    location: 'Asia-Pacific-1',
+    location: 'RIG-LOCAL',
     status: 'available',
-    model: 'AD107',
+    model: 'GA104',
     bus: 'PCIe 4.0',
-    description: 'Entry-level compute. Perfect for small models, learning, and light inference.',
+    description: 'The workhorse of the rig. 5888 CUDA cores, Tensor Cores for AI/ML inference. Best price-to-performance for LLM workloads up to 7B parameters.',
   },
   {
-    id: 'gpu-9',
-    name: 'RTX 3080',
+    id: 'gpu-1660s-0',
+    name: 'GTX 1660 SUPER',
     brand: 'NVIDIA',
-    vram: '10GB GDDR6X',
-    vramSize: 10,
-    cudaCores: 8704,
-    baseClock: '1.44 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 95,
-    powerDraw: 320,
-    temp: 70,
-    availability: 60,
-    pricePerHour: 0.9,
-    image: '/gpu-placeholder.jpg',
-    location: 'Asia-Pacific-1',
-    status: 'rented',
-    model: 'GA102',
-    bus: 'PCIe 4.0',
-    description: 'Reliable Ampere workhorse. Still a great value for many GPU compute tasks.',
-  },
-  {
-    id: 'gpu-10',
-    name: 'RTX 4090 OC Edition',
-    brand: 'NVIDIA',
-    vram: '24GB GDDR6X',
-    vramSize: 24,
-    cudaCores: 16384,
-    baseClock: '2.85 GHz',
-    memoryType: 'GDDR6X',
-    hashRate: 185,
-    powerDraw: 520,
-    temp: 74,
-    availability: 55,
-    pricePerHour: 3.0,
-    image: '/gpu-placeholder.jpg',
-    location: 'US-East-1',
-    status: 'available',
-    model: 'AD102-OC',
-    bus: 'PCIe 4.0',
-    description: 'Factory overclocked RTX 4090 for maximum performance. Liquid cooled.',
-  },
-  {
-    id: 'gpu-11',
-    name: 'RX 6900 XT',
-    brand: 'AMD',
-    vram: '16GB GDDR6',
-    vramSize: 16,
-    cudaCores: 5120,
-    baseClock: '1.83 GHz',
+    vram: '6GB GDDR6',
+    vramSize: 6,
+    cudaCores: 1408,
+    baseClock: '1.53 GHz',
     memoryType: 'GDDR6',
-    hashRate: 62,
-    powerDraw: 300,
+    hashRate: 30.0,
+    powerDraw: 85,
+    temp: 62,
+    availability: 100,
+    pricePerHour: 0.08,
+    image: '/gpu-placeholder.jpg',
+    location: 'RIG-LOCAL',
+    status: 'available',
+    model: 'TU116',
+    bus: 'PCIe 3.0',
+    description: 'Reliable Turing GPU for gaming workloads, lighter inference, and render farm tasks. No Tensor Cores but solid compute for the price.',
+  },
+  {
+    id: 'gpu-1660s-1',
+    name: 'GTX 1660 SUPER',
+    brand: 'NVIDIA',
+    vram: '6GB GDDR6',
+    vramSize: 6,
+    cudaCores: 1408,
+    baseClock: '1.53 GHz',
+    memoryType: 'GDDR6',
+    hashRate: 30.0,
+    powerDraw: 78,
+    temp: 64,
+    availability: 100,
+    pricePerHour: 0.08,
+    image: '/gpu-placeholder.jpg',
+    location: 'RIG-LOCAL',
+    status: 'available',
+    model: 'TU116',
+    bus: 'PCIe 3.0',
+    description: 'Reliable Turing GPU for gaming workloads, lighter inference, and render farm tasks. No Tensor Cores but solid compute for the price.',
+  },
+  {
+    id: 'gpu-1660s-2',
+    name: 'GTX 1660 SUPER',
+    brand: 'NVIDIA',
+    vram: '6GB GDDR6',
+    vramSize: 6,
+    cudaCores: 1408,
+    baseClock: '1.53 GHz',
+    memoryType: 'GDDR6',
+    hashRate: 30.0,
+    powerDraw: 95,
+    temp: 68,
+    availability: 100,
+    pricePerHour: 0.08,
+    image: '/gpu-placeholder.jpg',
+    location: 'RIG-LOCAL',
+    status: 'available',
+    model: 'TU116',
+    bus: 'PCIe 3.0',
+    description: 'Reliable Turing GPU for gaming workloads, lighter inference, and render farm tasks. No Tensor Cores but solid compute for the price.',
+  },
+  {
+    id: 'gpu-1660s-3',
+    name: 'GTX 1660 SUPER',
+    brand: 'NVIDIA',
+    vram: '6GB GDDR6',
+    vramSize: 6,
+    cudaCores: 1408,
+    baseClock: '1.53 GHz',
+    memoryType: 'GDDR6',
+    hashRate: 30.0,
+    powerDraw: 55,
     temp: 61,
-    availability: 85,
-    pricePerHour: 0.7,
+    availability: 100,
+    pricePerHour: 0.08,
     image: '/gpu-placeholder.jpg',
-    location: 'EU-Central-2',
+    location: 'RIG-LOCAL',
     status: 'available',
-    model: 'Navi 21',
-    bus: 'PCIe 4.0',
-    description: 'Previous-gen AMD flagship. Strong compute value with ample VRAM.',
+    model: 'TU116',
+    bus: 'PCIe 3.0',
+    description: 'Reliable Turing GPU for gaming workloads, lighter inference, and render farm tasks. No Tensor Cores but solid compute for the price.',
   },
 ];
 
 const INITIAL_TRANSACTIONS: Transaction[] = [
   { id: 'tx-1', type: 'top-up', description: 'Credit purchase', amount: 50.0, date: new Date('2025-01-15T09:15:00').getTime() },
-  { id: 'tx-2', type: 'rental', description: 'RTX 4090 #2847 (6h)', amount: -14.4, date: new Date('2025-01-15T10:30:00').getTime(), gpuName: 'RTX 4090' },
-  { id: 'tx-3', type: 'rental', description: 'RTX 3090 #2841 (12h)', amount: -14.4, date: new Date('2025-01-15T10:45:00').getTime(), gpuName: 'RTX 3090 Ti' },
+  { id: 'tx-2', type: 'rental', description: 'RTX 3070 #2847 (6h)', amount: -2.1, date: new Date('2025-01-15T10:30:00').getTime(), gpuName: 'RTX 3070' },
+  { id: 'tx-3', type: 'rental', description: '1660 SUPER #2841 (12h)', amount: -0.96, date: new Date('2025-01-15T10:45:00').getTime(), gpuName: 'GTX 1660 SUPER' },
   { id: 'tx-4', type: 'top-up', description: 'Credit purchase', amount: 100.0, date: new Date('2025-01-14T15:22:00').getTime() },
-  { id: 'tx-5', type: 'rental', description: 'RTX 4080 #2839 (3h)', amount: -5.4, date: new Date('2025-01-14T11:00:00').getTime(), gpuName: 'RTX 4080' },
-  { id: 'tx-6', type: 'refund', description: 'Early termination #2835', amount: 3.2, date: new Date('2025-01-13T20:45:00').getTime() },
-  { id: 'tx-7', type: 'extension', description: 'Extend RTX 4090 #2847 (+2h)', amount: -4.8, date: new Date('2025-01-15T14:20:00').getTime(), gpuName: 'RTX 4090' },
+  { id: 'tx-5', type: 'rental', description: 'RTX 3070 #2839 (3h)', amount: -1.05, date: new Date('2025-01-14T11:00:00').getTime(), gpuName: 'RTX 3070' },
+  { id: 'tx-6', type: 'refund', description: 'Early termination #2835', amount: 0.7, date: new Date('2025-01-13T20:45:00').getTime() },
+  { id: 'tx-7', type: 'extension', description: 'Extend RTX 3070 #2847 (+2h)', amount: -0.7, date: new Date('2025-01-15T14:20:00').getTime(), gpuName: 'RTX 3070' },
 ];
 
 const INITIAL_RENTALS: Rental[] = [
   {
     id: 'rent-1',
-    gpuId: 'gpu-1',
-    gpuName: 'RTX 4090 Founders Edition',
+    gpuId: 'gpu-rtx3070',
+    gpuName: 'RTX 3070',
     gpuImage: '/gpu-placeholder.jpg',
-    hashRate: 165,
-    temp: 62,
-    powerDraw: 450,
-    location: 'US-East-4',
+    hashRate: 62.5,
+    temp: 58,
+    powerDraw: 185,
+    location: 'RIG-LOCAL',
     startTime: Date.now() - 2 * 3600 * 1000,
     duration: 6,
-    totalCost: 14.4,
+    totalCost: 2.1,
     status: 'running',
     instanceId: '#2847',
   },
   {
     id: 'rent-2',
-    gpuId: 'gpu-2',
-    gpuName: 'RTX 3090 Ti',
+    gpuId: 'gpu-1660s-0',
+    gpuName: 'GTX 1660 SUPER',
     gpuImage: '/gpu-placeholder.jpg',
-    hashRate: 93,
-    temp: 71,
-    powerDraw: 348,
-    location: 'US-West-1',
+    hashRate: 30.0,
+    temp: 62,
+    powerDraw: 85,
+    location: 'RIG-LOCAL',
     startTime: Date.now() - 45 * 60 * 1000,
     duration: 12,
-    totalCost: 14.4,
+    totalCost: 0.96,
     status: 'running',
     instanceId: '#2841',
   },
@@ -409,6 +288,7 @@ export default function GPURental() {
   const [txFilter, setTxFilter] = useState<string>('all');
 
   const addNotification = useOSStore((s) => s.addNotification);
+  const { gpus: realGPUs } = useRealGPU();
 
   // Live countdown timer
   useEffect(() => {
@@ -430,9 +310,8 @@ export default function GPURental() {
     let list = [...GPUS];
 
     if (filterCategory !== 'all') {
-      if (filterCategory === 'NVIDIA') list = list.filter((g) => g.brand === 'NVIDIA');
-      else if (filterCategory === 'AMD') list = list.filter((g) => g.brand === 'AMD');
-      else if (filterCategory === 'Enterprise') list = list.filter((g) => g.vramSize >= 48);
+      if (filterCategory === 'RTX 3070') list = list.filter((g) => g.name.includes('RTX 3070'));
+      else if (filterCategory === '1660 SUPER') list = list.filter((g) => g.name.includes('1660 SUPER'));
     }
 
     if (filterAvailability) {
@@ -688,6 +567,7 @@ export default function GPURental() {
             setSortBy={setSortBy}
             onRentGPU={handleRentGPU}
             myRentals={myRentals}
+            realGPUs={realGPUs}
           />
         )}
         {activeTab === 'my-rentals' && (
@@ -833,6 +713,7 @@ function BrowseTab({
   setSortBy,
   onRentGPU,
   myRentals,
+  realGPUs,
 }: {
   filteredGPUs: GPU[];
   searchQuery: string;
@@ -847,10 +728,10 @@ function BrowseTab({
   setSortBy: (v: 'price' | 'performance' | 'availability') => void;
   onRentGPU: (gpu: GPU) => void;
   myRentals: Rental[];
+  realGPUs: import('@/hooks/useRealGPU').GPUStatus[];
 }) {
-  const categories = ['all', 'NVIDIA', 'AMD', 'Enterprise'];
-  const totalOnline = 847;
-  const locationsCount = 12;
+  const categories = ['all', 'RTX 3070', '1660 SUPER'];
+  const totalOnline = 5;
 
   return (
     <div>
@@ -861,7 +742,7 @@ function BrowseTab({
             Available GPUs
           </h2>
           <p className="text-[12px] mt-1" style={{ color: '#8A8AA3' }}>
-            {totalOnline} units online across {locationsCount} locations
+            {totalOnline} GPUs in local rig — {realGPUs.length} detected by nvidia-smi
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -1001,6 +882,7 @@ function BrowseTab({
         {filteredGPUs.map((gpu, i) => {
           const isRentedByMe = myRentals.some((r) => r.gpuId === gpu.id);
           const isRented = gpu.status === 'rented' && !isRentedByMe;
+          const isDetected = realGPUs.some((rg) => rg.name.includes(gpu.name.includes('3070') ? 'RTX 3070' : '1660 SUPER'));
           return (
             <GPUCard
               key={gpu.id}
@@ -1008,6 +890,7 @@ function BrowseTab({
               index={i}
               isRentedByMe={isRentedByMe}
               isRented={isRented}
+              isDetected={isDetected}
               onRent={() => onRentGPU(gpu)}
             />
           );
@@ -1054,18 +937,21 @@ function GPUCard({
   index,
   isRentedByMe,
   isRented,
+  isDetected,
   onRent,
 }: {
   gpu: GPU;
   index: number;
   isRentedByMe: boolean;
   isRented: boolean;
+  isDetected: boolean;
   onRent: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
   const statusColor = isRentedByMe ? '#4A9EFF' : isRented ? '#FFB020' : '#00E5A0';
   const availColor = gpu.availability > 70 ? '#00E5A0' : gpu.availability > 30 ? '#FFB020' : '#FF4757';
+  const isStar = gpu.name.includes('RTX 3070');
 
   return (
     <div
@@ -1099,9 +985,21 @@ function GPUCard({
 
       {/* Content */}
       <div style={{ padding: 16 }} className="flex flex-col flex-1">
-        <h3 className="text-[14px] font-semibold" style={{ color: '#E8E8F0' }}>
-          {gpu.name}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-[14px] font-semibold" style={{ color: isStar ? '#00E5A0' : '#E8E8F0' }}>
+            {gpu.name}
+          </h3>
+          {isStar && (
+            <span className="text-[9px] font-bold px-[4px] py-[1px] rounded" style={{ background: 'rgba(0,229,160,0.15)', color: '#00E5A0' }}>
+              STAR
+            </span>
+          )}
+          {isDetected && (
+            <span className="text-[9px] font-bold px-[4px] py-[1px] rounded flex items-center gap-1" style={{ background: 'rgba(0,229,160,0.10)', color: '#00E5A0' }}>
+              <CheckCircle2 size={9} /> DETECTED
+            </span>
+          )}
+        </div>
         <p className="text-[12px] mt-1" style={{ color: '#8A8AA3' }}>
           {gpu.brand} &middot; {gpu.vram} &middot; {formatRig(gpu.pricePerHour)}/hr
         </p>

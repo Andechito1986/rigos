@@ -185,6 +185,17 @@ const DEFAULT_APPS: AppDefinition[] = [
     category: 'Documentation',
     pinned: false,
   },
+  {
+    id: 'display-dashboard',
+    name: 'Display',
+    icon: 'Monitor',
+    iconType: 'lucide' as const,
+    component: 'DisplayDashboard',
+    defaultSize: { width: 800, height: 480 },
+    minSize: { width: 640, height: 360 },
+    category: 'System',
+    pinned: false,
+  },
 ];
 
 const DEFAULT_DESKTOP_ICONS: DesktopIconItem[] = [
@@ -219,6 +230,14 @@ const DEFAULT_DESKTOP_ICONS: DesktopIconItem[] = [
     icon: 'TrashIcon',
     iconType: 'svg',
     position: { x: 24, y: 312 },
+  },
+  {
+    id: 'icon-display',
+    appId: 'display-dashboard',
+    label: 'Display',
+    icon: 'Monitor',
+    iconType: 'lucide',
+    position: { x: 24, y: 408 },
   },
 ];
 

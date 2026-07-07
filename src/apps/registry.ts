@@ -7,6 +7,7 @@ import Terminal from './Terminal';
 import FileManager from './FileManager';
 import Settings from './Settings';
 import Dashboard from './Dashboard';
+import DisplayDashboard from './DisplayDashboard';
 import Placeholder from './Placeholder';
 
 const componentRegistry: Record<string, ComponentType<Record<string, unknown>>> = {
@@ -15,6 +16,7 @@ const componentRegistry: Record<string, ComponentType<Record<string, unknown>>> 
   FileManager,
   Settings,
   Dashboard,
+  DisplayDashboard,
   Placeholder,
 };
 
