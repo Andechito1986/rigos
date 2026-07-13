@@ -1,11 +1,17 @@
 #!/bin/bash
 # =============================================================================
-# RIG.OS - Master Installation Script
+# RIG.OS v2.1 - Master Installation Script
 # =============================================================================
 # Usage:   sudo bash install-rig.sh
 # Target:  Ubuntu Server 24.04 LTS (headless)
 # Hardware: 4x GTX 1660 Super + 1x RTX 3070, SSD USB 512GB
-# Network:  Static IP 172.16.16.70/24, Gateway 172.16.16.1
+# Network:  DHCP during install, static IP applied at END
+# GPUs:     RTX 3070 → Vast.ai (AI/ML renta) | 1660S → Salad (Gaming cloud)
+# Payments: Bitcoin (wallet fría configurada por usuario)
+# =============================================================================
+# CHANGELOG:
+# v2.1 - IP estática al final, arreglo /var/lib/rigos, nvidia-utils incluido,
+#        kiosk mkdir -p, renta GPU integrada, Ubuntu 24.04 LTS only
 # =============================================================================
 
 set -euo pipefail
@@ -65,15 +71,17 @@ echo " | |_) | |_) |  _| \\___ \\| | | \\___ \\"
 echo " |  _ <|  __/| |___ ___) | |_| |___) |"
 echo " |_| \\_\\_|   |_____|____/ \\___/|____/"
 echo -e "${NC}"
-echo -e "${BOLD}  Instalador v1.0 | Rig: ${RIG_HOSTNAME} | IP: ${RIG_IP}${NC}"
+echo -e "${BOLD}  Instalador v2.1 | Ubuntu 24.04 LTS | Rig: ${RIG_HOSTNAME}${NC}"
+echo -e "${YELLOW}  IP estatica se aplica al FINAL para no cortar la conexion${NC}"
 echo ""
 
 check_root
 info "Iniciando instalacion... Tiempo estimado: 15-25 minutos"
+info "La IP estatica (${RIG_IP}) se aplicara al final, despues de todo lo demas"
 sleep 2
 
 # ─── Step 1: System Validation ──────────────────────────────────────────────
-step "Paso 1/10: Validacion del sistema"
+step "Paso 1/12: Validacion del sistema"
 
 if ! grep -q "Ubuntu" /etc/os-release 2>/dev/null; then
   warn "No se detecto Ubuntu. Este script esta diseñado para Ubuntu Server 24.04"
@@ -92,53 +100,27 @@ DEBIAN_FRONTEND=noninteractive apt upgrade -y
 ok "Sistema actualizado"
 
 # ─── Step 2: Hostname ───────────────────────────────────────────────────────
-step "Paso 2/10: Configuracion basica"
+step "Paso 2/12: Configuracion basica"
 
 info "Configurando hostname: $RIG_HOSTNAME"
 hostnamectl set-hostname "$RIG_HOSTNAME"
-echo "127.0.1.1 $RIG_HOSTNAME" >> /etc/hosts
+if ! grep -q "127.0.1.1" /etc/hosts; then
+  echo "127.0.1.1 $RIG_HOSTNAME" >> /etc/hosts
+fi
 ok "Hostname configurado"
 
 # Create rig user if doesn't exist
 if ! id "$RIG_USER" &>/dev/null; then
   info "Creando usuario: $RIG_USER"
-  useradd -m -s /bin/bash -G sudo,docker "$RIG_USER" 2>/dev/null || useradd -m -s /bin/bash -G sudo "$RIG_USER"
+  useradd -m -s /bin/bash -G sudo "$RIG_USER"
   echo "$RIG_USER:$RIG_USER" | chpasswd
-  ok "Usuario $RIG_USER creado (password: $RIG_USER - CAMBIALO DESPUES)"
+  ok "Usuario $RIG_USER creado (password: rig - CAMBIALO DESPUES con: passwd rig)"
 else
   info "Usuario $RIG_USER ya existe"
 fi
 
-# ─── Step 3: Network (Static IP) ────────────────────────────────────────────
-step "Paso 3/10: Configuracion de red estatica"
-
-detect_network_interface
-
-cat > /etc/netplan/00-rig-os.yaml <<EOF
-network:
-  version: 2
-  ethernets:
-    ${NETWORK_INTERFACE}:
-      dhcp4: no
-      addresses:
-        - ${RIG_IP}/${RIG_NETMASK}
-      routes:
-        - to: default
-          via: ${RIG_GATEWAY}
-      nameservers:
-        addresses:
-          - 8.8.8.8
-          - 1.1.1.1
-EOF
-
-chmod 600 /etc/netplan/00-rig-os.yaml
-netplan apply
-sleep 2
-CURRENT_IP=$(ip -4 addr show "$NETWORK_INTERFACE" | grep -oP '(?<=inet\s)\d+(\.\d+){3}')
-ok "IP configurada: $CURRENT_IP (deberia ser $RIG_IP)"
-
-# ─── Step 4: Packages ───────────────────────────────────────────────────────
-step "Paso 4/10: Instalando paquetes esenciales"
+# ─── Step 3: Packages ───────────────────────────────────────────────────────
+step "Paso 3/12: Instalando paquetes esenciales"
 
 PACKAGES=(
   curl wget git htop tmux
@@ -149,77 +131,103 @@ PACKAGES=(
   ufw
   software-properties-common
   ubuntu-drivers-common
+  gnupg ca-certificates
 )
 
 info "Instalando paquetes base (${#PACKAGES[@]} paquetes)..."
 DEBIAN_FRONTEND=noninteractive apt install -y "${PACKAGES[@]}" 2>/dev/null || {
-  warn "Algunos paquetes no se instalaron, intentando sin los opcionales..."
-  DEBIAN_FRONTEND=noninteractive apt install -y curl wget git htop tmux nginx xorg openbox ufw
+  warn "Algunos paquetes opcionales no se instalaron, continuando con los esenciales..."
+  DEBIAN_FRONTEND=noninteractive apt install -y curl wget git htop tmux nginx xorg openbox ufw gnupg ca-certificates
 }
 ok "Paquetes base instalados"
 
-# Node.js (LTS)
-info "Instalando Node.js LTS..."
+# ─── Step 4: Node.js ────────────────────────────────────────────────────────
+step "Paso 4/12: Instalando Node.js LTS"
+
 if ! command -v node &>/dev/null; then
+  info "Instalando Node.js 20 desde NodeSource..."
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt install -y nodejs
+  ok "Node.js $(node --version) instalado"
+else
+  ok "Node.js ya instalado: $(node --version)"
 fi
-ok "Node.js $(node --version) instalado"
 
-# Docker
-info "Instalando Docker..."
-if ! command -v docker &>/dev/null; then
-  curl -fsSL https://get.docker.com | sh
-  usermod -aG docker "$RIG_USER"
-fi
-ok "Docker instalado"
-
-# ─── Step 5: NVIDIA Drivers ─────────────────────────────────────────────────
-step "Paso 5/10: Instalando drivers NVIDIA"
+# ─── Step 5: NVIDIA Drivers + nvidia-smi ────────────────────────────────────
+step "Paso 5/12: Instalando drivers NVIDIA + utilidades"
 
 info "Detectando GPUs NVIDIA..."
 lspci | grep -i nvidia || warn "No se detectaron GPUs NVIDIA via lspci"
 
-info "Instalando driver NVIDIA (esto puede tardar varios minutos)..."
+info "Instalando driver NVIDIA y nvidia-utils (para nvidia-smi)..."
 
-# Try recommended driver first
+# Install driver + utilities together
 if ubuntu-drivers devices 2>/dev/null | grep -q nvidia; then
-  info "Instalando driver recomendado por ubuntu-drivers..."
+  info "Usando ubuntu-drivers (metodo recomendado)..."
   ubuntu-drivers install --gpgpu || {
-    warn "Fallo el driver recomendado, intentando nvidia-driver-550-server..."
-    apt install -y nvidia-driver-550-server || {
-      warn "Fallo 550-server, intentando nvidia-driver-535-server..."
-      apt install -y nvidia-driver-535-server || {
-        err "No se pudo instalar ningun driver NVIDIA. Instala manualmente."
+    warn "ubuntu-drivers fallo, intentando metodo manual..."
+    apt install -y nvidia-driver-550-server nvidia-utils-550 || {
+      apt install -y nvidia-driver-535-server nvidia-utils-535 || {
+        err "No se pudo instalar drivers NVIDIA"
         exit 1
       }
     }
   }
 else
-  warn "ubuntu-drivers no detecto GPUs. Intentando instalacion directa..."
-  apt install -y nvidia-driver-550-server || apt install -y nvidia-driver-535-server || {
-    err "No se pudo instalar driver NVIDIA"
-    exit 1
+  warn "ubuntu-drivers no detecto GPUs, instalacion directa..."
+  apt install -y nvidia-driver-550-server nvidia-utils-550 || {
+    apt install -y nvidia-driver-535-server nvidia-utils-535 || {
+      err "No se pudo instalar drivers NVIDIA"
+      exit 1
+    }
   }
 fi
 
+# Detect installed driver version and install matching utils
+DRIVER_VERSION=$(dpkg -l | grep -oP 'nvidia-driver-\d+' | head -1 | grep -oP '\d+') || DRIVER_VERSION="550"
+info "Version de driver detectada: ${DRIVER_VERSION}"
+
+# Ensure nvidia-utils matches the driver
+apt install -y "nvidia-utils-${DRIVER_VERSION}" 2>/dev/null || {
+  warn "nvidia-utils-${DRIVER_VERSION} no disponible, intentando version generica..."
+  apt install -y nvidia-utils-550 || apt install -y nvidia-utils-535 || true
+}
+
 # nvidia-persistenced for headless mode
 info "Configurando nvidia-persistenced (modo headless)..."
-systemctl enable nvidia-persistenced 2>/dev/null || true
-ok "Drivers NVIDIA instalados. Se requiere REBOOT al final."
+systemctl enable nvidia-persistenced 2>/dev/null || {
+  warn "Servicio nvidia-persistenced no encontrado (normal en drivers nuevos)"
+}
 
-# ─── Step 6: RIG.OS Application ─────────────────────────────────────────────
-step "Paso 6/10: Instalando RIG.OS"
+ok "Drivers NVIDIA instalados. nvidia-smi deberia funcionar despues del reboot."
 
-# Setup directories
+# ─── Step 6: Docker ─────────────────────────────────────────────────────────
+step "Paso 6/12: Instalando Docker"
+
+if ! command -v docker &>/dev/null; then
+  info "Instalando Docker..."
+  curl -fsSL https://get.docker.com | sh
+  usermod -aG docker "$RIG_USER"
+  ok "Docker instalado"
+else
+  ok "Docker ya instalado"
+fi
+
+# ─── Step 7: RIG.OS Frontend + API ──────────────────────────────────────────
+step "Paso 7/12: Instalando RIG.OS Web UI y API"
+
+# Create directories FIRST (before service starts)
 info "Creando directorios..."
 mkdir -p /var/www/rigos
 mkdir -p /opt/rigos-api
+mkdir -p /var/lib/rigos
 chown "$RIG_USER:$RIG_USER" /var/www/rigos
 chown "$RIG_USER:$RIG_USER" /opt/rigos-api
-ok "Directorios creados"
+chown "$RIG_USER:$RIG_USER" /var/lib/rigos
+chmod 755 /var/lib/rigos
+ok "Directorios creados (incluyendo /var/lib/rigos)"
 
-# Copy frontend files (assumes install-rig.sh is run from the repo)
+# Copy frontend files
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
 
@@ -232,8 +240,9 @@ elif [[ -d "$REPO_DIR/build" ]]; then
   cp -r "$REPO_DIR/build/"* /var/www/rigos/
   ok "Frontend copiado"
 else
-  warn "No se encontro carpeta dist/ ni build/. Copia manualmente los archivos del build a /var/www/rigos/"
+  warn "No se encontro carpeta dist/ ni build/."
   warn "Ubicacion esperada: $REPO_DIR/dist/"
+  warn "El frontend debera copiarse manualmente: cp -r dist/* /var/www/rigos/"
 fi
 
 # Install API
@@ -249,8 +258,8 @@ else
   warn "No se encontro api/server.js. La API debera instalarse manualmente."
 fi
 
-# ─── Step 7: Services ───────────────────────────────────────────────────────
-step "Paso 7/10: Configurando servicios"
+# ─── Step 8: Services (nginx + API) ─────────────────────────────────────────
+step "Paso 8/12: Configurando servicios"
 
 # nginx config
 cat > /etc/nginx/sites-available/rigos <<'NGINX_EOF'
@@ -299,7 +308,7 @@ ok "nginx configurado en puerto 8080"
 cat > /etc/systemd/system/rigos-api.service <<'SERVICE_EOF'
 [Unit]
 Description=RIG.OS GPU Monitoring API
-After=network-online.target nvidia-persistenced.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -326,23 +335,28 @@ SERVICE_EOF
 
 systemctl daemon-reload
 systemctl enable rigos-api
+systemctl start rigos-api || {
+  warn "rigos-api no pudo iniciar (puede ser normal si faltan dependencias)"
+  warn "Verificar con: sudo systemctl status rigos-api"
+}
 ok "Servicio rigos-api configurado"
 
-# ─── Step 8: Firewall ───────────────────────────────────────────────────────
-step "Paso 8/10: Configurando firewall"
+# ─── Step 9: Firewall ───────────────────────────────────────────────────────
+step "Paso 9/12: Configurando firewall"
 
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp comment 'SSH'
 ufw allow 8080/tcp comment 'RIG.OS Web UI'
-ufw allow 3001/tcp comment 'RIG.OS API' 2>/dev/null || true
 ufw --force enable
 ok "Firewall UFW activado (puertos: 22, 8080)"
 
-# ─── Step 9: Kiosk Mode (8" Display) ────────────────────────────────────────
-step "Paso 9/10: Configurando modo kiosk (pantalla 8\")"
+# ─── Step 10: Kiosk Mode (8" Display) ───────────────────────────────────────
+step "Paso 10/12: Configurando modo kiosk (pantalla 8\")"
 
-# Auto-login on tty1
+# FIX: Create parent directory before writing file
+mkdir -p /etc/systemd/system/getty@tty1.service.d/
+
 tee /etc/systemd/system/getty@tty1.service.d/override.conf <<'AUTOLOGIN_EOF'
 [Service]
 ExecStart=
@@ -407,10 +421,122 @@ chown -R "$RIG_USER:$RIG_USER" /home/$RIG_USER/.config
 
 ok "Modo kiosk configurado (arranca automaticamente en la pantalla de 8\")"
 
-# ─── Step 10: Update Script ─────────────────────────────────────────────────
-step "Paso 10/10: Scripts de utilidad"
+# ─── Step 11: GPU Rental Setup ──────────────────────────────────────────────
+step "Paso 11/12: Configurando sistema de renta GPU"
 
-# rigos-update command
+# Vast.ai for RTX 3070
+cat > /opt/rigos-api/vastai-setup.sh <<'VAST_EOF'
+#!/bin/bash
+# Vast.ai setup for RTX 3070
+# Run manually after install: sudo bash /opt/rigos-api/vastai-setup.sh
+
+echo "=== Vast.ai Setup ==="
+echo "1. Create account at https://vast.ai/hosting"
+echo "2. Get your API key from Settings -> API"
+echo "3. Run: vastai set api-key YOUR_KEY"
+echo "4. Run: vastai list machines"
+echo "5. Run: vastai create instance --gpu 3070"
+echo ""
+echo "Install vastai CLI:"
+# pip3 install vastai
+# or
+# curl -fsSL https://vast.ai/install | bash
+echo "Done."
+VAST_EOF
+chmod +x /opt/rigos-api/vastai-setup.sh
+
+# Salad for GTX 1660 Super
+cat > /opt/rigos-api/salad-setup.sh <<'SALAD_EOF'
+#!/bin/bash
+# Salad.com setup for GTX 1660 Super
+# Run manually after install: sudo bash /opt/rigos-api/salad-setup.sh
+
+echo "=== Salad.com Setup ==="
+echo "1. Create account at https://salad.com"
+echo "2. Download Salad from: https://salad.com/download"
+echo "3. Install and login with your account"
+echo "4. Configure your BTC wallet in Salad settings"
+echo "5. GPUs will start earning automatically"
+echo ""
+echo "Or install via Docker:"
+echo "docker run -d --name salad --gpus all -e SALAD_API_KEY=YOUR_KEY saladtech/salad-client"
+echo "Done."
+SALAD_EOF
+chmod +x /opt/rigos-api/salad-setup.sh
+
+# GPU Rental config file
+cat > /var/lib/rigos/gpu-rental-config.json <<'RENTAL_EOF'
+{
+  "version": "2.1",
+  "gpu_fleet": [
+    {
+      "gpu_index": 0,
+      "name": "GTX 1660 SUPER",
+      "vram_gb": 6,
+      "platform": "salad",
+      "status": "pending_setup",
+      "earnings_btc": 0
+    },
+    {
+      "gpu_index": 1,
+      "name": "GTX 1660 SUPER",
+      "vram_gb": 6,
+      "platform": "salad",
+      "status": "pending_setup",
+      "earnings_btc": 0
+    },
+    {
+      "gpu_index": 2,
+      "name": "RTX 3070",
+      "vram_gb": 8,
+      "platform": "vastai",
+      "status": "pending_setup",
+      "earnings_btc": 0
+    },
+    {
+      "gpu_index": 3,
+      "name": "GTX 1660 SUPER",
+      "vram_gb": 6,
+      "platform": "salad",
+      "status": "pending_setup",
+      "earnings_btc": 0
+    },
+    {
+      "gpu_index": 4,
+      "name": "GTX 1660 SUPER",
+      "vram_gb": 6,
+      "platform": "salad",
+      "status": "pending_setup",
+      "earnings_btc": 0
+    }
+  ],
+  "wallet": {
+    "type": "bitcoin",
+    "address": "PENDING_USER_CONFIGURATION",
+    "total_earnings_btc": 0
+  },
+  "platforms": {
+    "salad": {
+      "url": "https://salad.com",
+      "earnings_estimate_monthly_usd": 60
+    },
+    "vastai": {
+      "url": "https://vast.ai/hosting",
+      "earnings_estimate_monthly_usd": 50
+    }
+  }
+}
+RENTAL_EOF
+chown rig:rig /var/lib/rigos/gpu-rental-config.json
+
+ok "Configuracion de renta GPU creada"
+info "Para activar la renta:"
+info "  RTX 3070 → Vast.ai: sudo bash /opt/rigos-api/vastai-setup.sh"
+info "  GTX 1660S → Salad: sudo bash /opt/rigos-api/salad-setup.sh"
+
+# ─── Step 12: rigos-update command ──────────────────────────────────────────
+step "Paso 12/12: Scripts de utilidad"
+
 tee /usr/local/bin/rigos-update <<'UPDATE_EOF'
 #!/bin/bash
 # RIG.OS Update Script
@@ -452,7 +578,7 @@ update_git() {
   log "Actualizando via git..."
   cd "$RIG_DIR"
   if [[ -d .git ]]; then
-    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || {
+    git pull origin master 2>/dev/null || {
       log "ERROR: git pull fallo"
       return 1
     }
@@ -465,7 +591,7 @@ update_git() {
   
   cd "$API_DIR"
   if [[ -d .git ]]; then
-    git pull origin main 2>/dev/null || git pull origin master 2>/dev/null || true
+    git pull origin master 2>/dev/null || true
     npm install --production 2>/dev/null || true
     systemctl restart rigos-api
     log "API actualizada via git"
@@ -474,17 +600,21 @@ update_git() {
 
 show_status() {
   echo "=== RIG.OS Status ==="
-  echo "nginx:     $(systemctl is-active nginx)"
-  echo "rigos-api: $(systemctl is-active rigos-api)"
+  echo "nginx:     $(systemctl is-active nginx 2>/dev/null || echo 'unknown')"
+  echo "rigos-api: $(systemctl is-active rigos-api 2>/dev/null || echo 'unknown')"
   echo "nvidia:    $(systemctl is-active nvidia-persistenced 2>/dev/null || echo 'n/a')"
   echo ""
-  echo "IP:        $(hostname -I | awk '{print $1}')"
-  echo "Uptime:    $(uptime -p)"
+  echo "IP:        $(hostname -I | awk '{print $1}' 2>/dev/null || echo 'unknown')"
+  echo "Uptime:    $(uptime -p 2>/dev/null || echo 'unknown')"
   echo "GPU:       $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l) GPUs detectadas"
   echo ""
   echo "URLs:"
-  echo "  Web UI:  http://$(hostname -I | awk '{print $1}'):8080"
-  echo "  API:     http://$(hostname -I | awk '{print $1}'):3001/api/health"
+  echo "  Web UI:  http://$(hostname -I | awk '{print $1}' 2>/dev/null):8080"
+  echo "  API:     http://$(hostname -I | awk '{print $1}' 2>/dev/null):3001/api/health"
+  echo ""
+  echo "GPU Rental:"
+  echo "  Vast.ai (RTX 3070):   sudo bash /opt/rigos-api/vastai-setup.sh"
+  echo "  Salad (GTX 1660S x4): sudo bash /opt/rigos-api/salad-setup.sh"
 }
 
 case "${1:-status}" in
@@ -497,34 +627,68 @@ UPDATE_EOF
 
 chmod +x /usr/local/bin/rigos-update
 
-# Create data directory for API
-mkdir -p /var/lib/rigos
-chown "$RIG_USER:$RIG_USER" /var/lib/rigos
-chmod 755 /var/lib/rigos
-
 ok "Scripts de utilidad instalados"
 
-# ─── Summary ────────────────────────────────────────────────────────────────
-step "Instalacion completada!"
+# =============================================================================
+# FINAL STEP: Static IP (applied LAST to avoid disconnecting during install)
+# =============================================================================
+step "PASO FINAL: Aplicando IP estatica ${RIG_IP}"
 
-echo -e "\n${GREEN}${BOLD}  RIG.OS se instalo correctamente!${NC}\n"
-echo -e "  ${BOLD}IP estatica:${NC}    ${RIG_IP}"
+warn "A partir de este momento, la conexion SSH puede cortarse."
+warn "Si se corta, espera 2 minutos y reconecta con:"
+warn "  ssh rig@${RIG_IP}"
+sleep 5
+
+detect_network_interface
+
+cat > /etc/netplan/00-rig-os.yaml <<EOF
+network:
+  version: 2
+  ethernets:
+    ${NETWORK_INTERFACE}:
+      dhcp4: no
+      addresses:
+        - ${RIG_IP}/${RIG_NETMASK}
+      routes:
+        - to: default
+          via: ${RIG_GATEWAY}
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 1.1.1.1
+EOF
+
+chmod 600 /etc/netplan/00-rig-os.yaml
+netplan apply
+
+# Summary
+echo ""
+echo -e "${GREEN}${BOLD}  ================================================${NC}"
+echo -e "${GREEN}${BOLD}  RIG.OS v2.1 se instalo correctamente!${NC}"
+echo -e "${GREEN}${BOLD}  ================================================${NC}"
+echo ""
+echo -e "  ${BOLD}IP:${NC}             ${RIG_IP} (ahora es estatica)"
 echo -e "  ${BOLD}Hostname:${NC}       ${RIG_HOSTNAME}"
 echo -e "  ${BOLD}Usuario:${NC}        ${RIG_USER}"
-echo -e ""
+echo ""
 echo -e "  ${BOLD}Acceso Web UI:${NC}  ${CYAN}http://${RIG_IP}:8080${NC}"
-echo -e "  ${BOLD}Acceso SSH:${NC}     ${CYAN}ssh ${RIG_USER}@${RIG_IP}${NC}"
+echo -e "  ${BOLD}Acceso SSH:${NC}     ${CYAN}ssh rig@${RIG_IP}${NC}"
 echo -e "  ${BOLD}API Health:${NC}     ${CYAN}http://${RIG_IP}:3001/api/health${NC}"
-echo -e "  ${BOLD}Display 8\":${NC}     ${CYAN}http://${RIG_IP}:8080/?mode=display${NC}"
-echo -e ""
+echo -e "  ${BOLD}Display 8\":${NC}    ${CYAN}http://${RIG_IP}:8080/?mode=display${NC}"
+echo ""
+echo -e "  ${BOLD}GPU Rental (configurar manualmente):${NC}"
+echo -e "    RTX 3070  → Vast.ai:  ${CYAN}sudo bash /opt/rigos-api/vastai-setup.sh${NC}"
+echo -e "    GTX 1660S → Salad:    ${CYAN}sudo bash /opt/rigos-api/salad-setup.sh${NC}"
+echo ""
 echo -e "  ${BOLD}Comandos utiles:${NC}"
 echo -e "    rigos-update status   - Ver estado del sistema"
-echo -e "    rigos-update usb      - Actualizar desde pendrive USB"
+echo -e "    rigos-update git      - Actualizar desde GitHub"
 echo -e "    nvidia-smi            - Ver estado de las GPUs"
-echo -e "    sudo systemctl status rigos-api  - Estado del API"
-echo -e ""
-echo -e "  ${YELLOW}${BOLD}IMPORTANTE: Reinicia el sistema para activar los drivers NVIDIA${NC}"
-echo -e "  ${YELLOW}Ejecuta: sudo reboot${NC}\n"
+echo ""
+echo -e "  ${YELLOW}${BOLD}IMPORTANTE: Reinicia para activar drivers NVIDIA:${NC}"
+echo -e "  ${YELLOW}  sudo reboot${NC}"
+echo -e "  ${YELLOW}Despues del reboot, la IP sera: ${RIG_IP}${NC}"
+echo ""
 
 read -p "¿Reiniciar ahora? (s/N): " -n 1 -r
 echo
